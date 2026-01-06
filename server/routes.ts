@@ -24,9 +24,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Trust proxy for deployments behind Nginx or other reverse proxies
-  app.set("trust proxy", 1);
-
   // Session middleware with production-ready settings
   // For HTTPS deployments, set SECURE_COOKIES=true in environment
   const useSecureCookies = process.env.SECURE_COOKIES === "true";
