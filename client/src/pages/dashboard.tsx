@@ -266,6 +266,7 @@ export default function Dashboard() {
             <Button
               variant="ghost"
               size="icon"
+              onClick={() => setLocation("/settings")}
               data-testid="button-settings"
             >
               <Settings className="w-4 h-4" />

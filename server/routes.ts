@@ -5,6 +5,7 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import bcrypt from "bcrypt";
 import { insertUserSchema } from "@shared/schema";
+import { z } from "zod";
 
 const SessionStore = MemoryStore(session);
 const SALT_ROUNDS = 10;
@@ -58,17 +59,17 @@ export async function registerRoutes(
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
       cookie: {
-        secure: process.env.NODE_ENV === "production", // secure in production
+        secure: process.env.NODE_ENV === "production",
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        sameSite: "strict", // CSRF protection
+        sameSite: "strict",
       },
     })
   );
 
-  // Create default admin user if it doesn't exist (with hashed password)
-  const existingAdmin = await storage.getUserByUsername("admin");
-  if (!existingAdmin) {
+  // Create default admin user if no users exist (with hashed password)
+  const existingUsers = await storage.getAllUsers();
+  if (existingUsers.length === 0) {
     const hashedPassword = await bcrypt.hash("admin123", SALT_ROUNDS);
     await storage.createUser({
       username: "admin",
@@ -88,7 +89,6 @@ export async function registerRoutes(
   // Login route with validation
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
-      // Validate input using Zod schema
       const parseResult = insertUserSchema.safeParse(req.body);
       if (!parseResult.success) {
         return res.status(400).json({ 
@@ -98,14 +98,12 @@ export async function registerRoutes(
       }
 
       const { username, password } = parseResult.data;
-
       const user = await storage.getUserByUsername(username);
 
       if (!user) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      // Verify password using bcrypt
       const isValidPassword = await bcrypt.compare(password, user.password);
       if (!isValidPassword) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -153,6 +151,125 @@ export async function registerRoutes(
   app.get("/api/system/status", requireAuth, (req: Request, res: Response) => {
     const status = getSystemStatus();
     res.json(status);
+  });
+
+  // ============ USER MANAGEMENT ROUTES ============
+
+  // Get all users (protected)
+  app.get("/api/users", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Return users without passwords
+      const safeUsers = users.map(u => ({ id: u.id, username: u.username }));
+      res.json(safeUsers);
+    } catch (error) {
+      console.error("Get users error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Create new user (protected)
+  const createUserSchema = z.object({
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+  });
+
+  app.post("/api/users", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const parseResult = createUserSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors 
+        });
+      }
+
+      const { username, password } = parseResult.data;
+
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      const user = await storage.createUser({
+        username,
+        password: hashedPassword,
+      });
+
+      res.json({ success: true, user: { id: user.id, username: user.username } });
+    } catch (error) {
+      console.error("Create user error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update user password (protected)
+  const updatePasswordSchema = z.object({
+    password: z.string().min(6, "Password must be at least 6 characters"),
+  });
+
+  app.patch("/api/users/:id/password", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const parseResult = updatePasswordSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors 
+        });
+      }
+
+      const { password } = parseResult.data;
+
+      // Check if user exists
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+      const user = await storage.updateUserPassword(id, hashedPassword);
+
+      if (!user) {
+        return res.status(500).json({ error: "Failed to update password" });
+      }
+
+      res.json({ success: true, user: { id: user.id, username: user.username } });
+    } catch (error) {
+      console.error("Update password error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Delete user (protected)
+  app.delete("/api/users/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Prevent deleting own account
+      if (id === req.session.userId) {
+        return res.status(400).json({ error: "Cannot delete your own account" });
+      }
+
+      // Check if user exists
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const deleted = await storage.deleteUser(id);
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete user" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
   });
 
   return httpServer;
