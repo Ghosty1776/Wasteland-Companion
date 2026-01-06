@@ -265,9 +265,7 @@ function getServiceUptime(serviceName: string): string {
 }
 
 const serviceConfigs = [
-  { name: "Nginx", service: "nginx", port: 80 },
   { name: "PostgreSQL", service: "postgresql", port: 5432 },
-  { name: "Redis", service: "redis-server", port: 6379 },
   { name: "Docker", service: "docker" },
   { name: "SSH", service: "sshd", port: 22 },
   { name: "Firewall", service: "ufw" },
