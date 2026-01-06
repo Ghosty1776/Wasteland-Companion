@@ -24,7 +24,13 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Session middleware with improved security settings
+  // Trust proxy for deployments behind Nginx or other reverse proxies
+  app.set("trust proxy", 1);
+
+  // Session middleware with production-ready settings
+  // For HTTPS deployments, set SECURE_COOKIES=true in environment
+  const useSecureCookies = process.env.SECURE_COOKIES === "true";
+  
   app.use(
     session({
       secret: process.env.SESSION_SECRET || "lab-companion-secret-key-change-in-production",
@@ -34,10 +40,10 @@ export async function registerRoutes(
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
       cookie: {
-        secure: process.env.NODE_ENV === "production",
+        secure: useSecureCookies,
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        sameSite: "strict",
+        sameSite: "lax",
       },
     })
   );
