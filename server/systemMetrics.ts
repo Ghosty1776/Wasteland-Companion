@@ -54,77 +54,168 @@ function getUptime(): string {
 
 function getCpuUsage(): number {
   try {
-    const stat = fs.readFileSync("/proc/stat", "utf-8");
-    const cpuLine = stat.split("\n")[0];
-    const values = cpuLine.split(/\s+/).slice(1).map(Number);
-    const idle = values[3];
-    const total = values.reduce((a, b) => a + b, 0);
-    const usage = Math.round(((total - idle) / total) * 100);
-    return Math.min(100, Math.max(0, usage));
+    // Try vmstat first - gives accurate CPU idle percentage
+    const vmstatOutput = safeExec("vmstat 1 2 | tail -1 | awk '{print $15}'");
+    if (vmstatOutput) {
+      const idle = parseInt(vmstatOutput);
+      if (!isNaN(idle) && idle >= 0 && idle <= 100) {
+        return 100 - idle;
+      }
+    }
+    
+    // Fallback to top - gets CPU usage from a snapshot
+    const topOutput = safeExec("top -bn1 | grep 'Cpu(s)' | awk '{print $2}'");
+    if (topOutput) {
+      const usage = parseFloat(topOutput);
+      if (!isNaN(usage) && usage >= 0) {
+        return Math.round(Math.min(100, usage));
+      }
+    }
+    
+    // Last resort: read /proc/stat twice with a small delay
+    const stat1 = fs.readFileSync("/proc/stat", "utf-8");
+    const cpuLine1 = stat1.split("\n")[0];
+    const values1 = cpuLine1.split(/\s+/).slice(1).map(Number);
+    
+    // Small synchronous delay using execSync
+    safeExec("sleep 0.1");
+    
+    const stat2 = fs.readFileSync("/proc/stat", "utf-8");
+    const cpuLine2 = stat2.split("\n")[0];
+    const values2 = cpuLine2.split(/\s+/).slice(1).map(Number);
+    
+    const idle1 = values1[3] + values1[4];
+    const idle2 = values2[3] + values2[4];
+    const total1 = values1.reduce((a, b) => a + b, 0);
+    const total2 = values2.reduce((a, b) => a + b, 0);
+    
+    const idleDelta = idle2 - idle1;
+    const totalDelta = total2 - total1;
+    
+    if (totalDelta > 0) {
+      const usage = Math.round(((totalDelta - idleDelta) / totalDelta) * 100);
+      return Math.min(100, Math.max(0, usage));
+    }
+    
+    return 25;
   } catch {
-    return Math.floor(Math.random() * 30 + 15);
+    return 25;
   }
 }
 
 function getMemoryUsage(): number {
   try {
+    // Try free command first - most reliable on Ubuntu
+    const freeOutput = safeExec("free | grep Mem | awk '{print ($3/$2) * 100}'");
+    if (freeOutput) {
+      const usage = parseFloat(freeOutput);
+      if (!isNaN(usage) && usage >= 0 && usage <= 100) {
+        return Math.round(usage);
+      }
+    }
+    
+    // Fallback to /proc/meminfo
     const meminfo = fs.readFileSync("/proc/meminfo", "utf-8");
     const lines = meminfo.split("\n");
-    let total = 0, available = 0;
+    let total = 0, available = 0, free = 0, buffers = 0, cached = 0;
     
     for (const line of lines) {
       if (line.startsWith("MemTotal:")) {
         total = parseInt(line.split(/\s+/)[1]);
       } else if (line.startsWith("MemAvailable:")) {
         available = parseInt(line.split(/\s+/)[1]);
+      } else if (line.startsWith("MemFree:")) {
+        free = parseInt(line.split(/\s+/)[1]);
+      } else if (line.startsWith("Buffers:")) {
+        buffers = parseInt(line.split(/\s+/)[1]);
+      } else if (line.startsWith("Cached:")) {
+        cached = parseInt(line.split(/\s+/)[1]);
       }
     }
     
     if (total > 0) {
-      return Math.round(((total - available) / total) * 100);
+      // Use MemAvailable if present (newer kernels), otherwise calculate
+      const actualFree = available > 0 ? available : (free + buffers + cached);
+      return Math.round(((total - actualFree) / total) * 100);
     }
     return 50;
   } catch {
-    return Math.floor(Math.random() * 25 + 40);
+    return 50;
   }
 }
 
 function getDiskUsage(): number {
   try {
-    const output = safeExec("df -h / | tail -1 | awk '{print $5}' | tr -d '%'");
-    const usage = parseInt(output);
-    if (!isNaN(usage)) {
-      return usage;
+    // Try df with percentage extraction
+    const output = safeExec("df / 2>/dev/null | tail -1 | awk '{print $5}' | tr -d '%'");
+    if (output) {
+      const usage = parseInt(output);
+      if (!isNaN(usage) && usage >= 0 && usage <= 100) {
+        return usage;
+      }
     }
+    
+    // Alternative: calculate from blocks
+    const blocksOutput = safeExec("df / 2>/dev/null | tail -1 | awk '{print $3, $2}'");
+    if (blocksOutput) {
+      const [used, total] = blocksOutput.split(/\s+/).map(s => parseInt(s));
+      if (!isNaN(used) && !isNaN(total) && total > 0) {
+        return Math.round((used / total) * 100);
+      }
+    }
+    
     return 50;
   } catch {
-    return Math.floor(Math.random() * 10 + 55);
+    return 50;
   }
 }
 
 function getTemperature(): number {
   try {
-    const tempPath = "/sys/class/thermal/thermal_zone0/temp";
-    if (fs.existsSync(tempPath)) {
-      const temp = parseInt(fs.readFileSync(tempPath, "utf-8").trim());
-      return Math.round(temp / 1000);
+    // Try all thermal zones
+    for (let zone = 0; zone <= 10; zone++) {
+      const tempPath = `/sys/class/thermal/thermal_zone${zone}/temp`;
+      if (fs.existsSync(tempPath)) {
+        const temp = parseInt(fs.readFileSync(tempPath, "utf-8").trim());
+        if (!isNaN(temp) && temp > 0) {
+          return Math.round(temp / 1000);
+        }
+      }
     }
-    const sensorsOutput = safeExec("sensors 2>/dev/null | grep -oP '\\+\\d+\\.\\d+°C' | head -1 | tr -d '+°C'");
+    
+    // Try sensors command
+    const sensorsOutput = safeExec("sensors 2>/dev/null | grep -E 'Core|temp' | head -1 | grep -oE '[0-9]+\\.[0-9]+' | head -1");
     if (sensorsOutput) {
-      return Math.round(parseFloat(sensorsOutput));
+      const temp = parseFloat(sensorsOutput);
+      if (!isNaN(temp) && temp > 0 && temp < 150) {
+        return Math.round(temp);
+      }
     }
+    
+    // Try hwmon
+    const hwmonOutput = safeExec("cat /sys/class/hwmon/hwmon*/temp*_input 2>/dev/null | head -1");
+    if (hwmonOutput) {
+      const temp = parseInt(hwmonOutput);
+      if (!isNaN(temp) && temp > 0) {
+        return Math.round(temp / 1000);
+      }
+    }
+    
+    // Default fallback for systems without thermal sensors
     return 45;
   } catch {
-    return Math.floor(Math.random() * 15 + 45);
+    return 45;
   }
 }
 
 function checkNetworkStatus(): "online" | "offline" {
   try {
-    safeExec("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1 && echo online");
-    return "online";
+    const result = safeExec("ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1 && echo online || echo offline");
+    return result === "online" ? "online" : "offline";
   } catch {
-    return "online";
+    // Try alternative network check
+    const altResult = safeExec("curl -s --connect-timeout 2 http://www.google.com > /dev/null && echo online || echo offline");
+    return altResult === "online" ? "online" : "offline";
   }
 }
 
