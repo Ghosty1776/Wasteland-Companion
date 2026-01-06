@@ -16,6 +16,7 @@ import {
   Lock,
   Thermometer,
   MemoryStick,
+  Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -258,6 +259,15 @@ export default function Dashboard() {
               data-testid="button-refresh"
             >
               <RefreshCw className={`w-4 h-4 ${isRefetching ? "animate-spin" : ""}`} />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/devices")}
+              data-testid="button-devices"
+            >
+              <Network className="w-4 h-4" />
             </Button>
 
             <Button
