@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import session from "express-session";
 import MemoryStore from "memorystore";
 import bcrypt from "bcrypt";
-import { insertUserSchema, insertDeviceSchema, insertScriptSchema } from "@shared/schema";
+import { insertUserSchema, insertDeviceSchema, insertScriptSchema, insertNoteSchema } from "@shared/schema";
 import { z } from "zod";
 import { getSystemStatus } from "./systemMetrics";
 import { startDeviceMonitor } from "./deviceMonitor";
@@ -453,6 +453,102 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       console.error("Delete script error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============ NOTES MANAGEMENT ROUTES ============
+
+  // Get all notes (authenticated users)
+  app.get("/api/notes", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const notes = await storage.getAllNotes();
+      res.json(notes);
+    } catch (error) {
+      console.error("Get notes error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Get single note (authenticated users)
+  app.get("/api/notes/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const note = await storage.getNote(id);
+      if (!note) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+      res.json(note);
+    } catch (error) {
+      console.error("Get note error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Create note (admin only)
+  app.post("/api/notes", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const parseResult = insertNoteSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const note = await storage.createNote(parseResult.data);
+      res.json({ success: true, note });
+    } catch (error) {
+      console.error("Create note error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update note (admin only)
+  app.patch("/api/notes/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const partialSchema = insertNoteSchema.partial();
+      const parseResult = partialSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const existingNote = await storage.getNote(id);
+      if (!existingNote) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+
+      const note = await storage.updateNote(id, parseResult.data);
+      res.json({ success: true, note });
+    } catch (error) {
+      console.error("Update note error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Delete note (admin only)
+  app.delete("/api/notes/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const existingNote = await storage.getNote(id);
+      if (!existingNote) {
+        return res.status(404).json({ error: "Note not found" });
+      }
+
+      const deleted = await storage.deleteNote(id);
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete note" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete note error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

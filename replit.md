@@ -24,6 +24,7 @@ The default admin user has the "admin" role, which grants access to user managem
 - **Network Devices**: Map your home lab devices with IP, MAC, OS, and function descriptions
 - **Online/Offline Monitoring**: Automatic ping monitoring (every 60 seconds) to track device availability
 - **Script Library**: Store and organize bash scripts with categories (security, networking, automation, backup, monitoring, general), search/filter, and copy-to-clipboard
+- **Notes**: Document server work with categories (setup, configuration, troubleshooting, maintenance, database, general) for easy recreation
 - **Dark Theme**: Cyberpunk-inspired UI with green accent colors
 - **Responsive Design**: Works on desktop and mobile devices
 
@@ -46,6 +47,7 @@ client/
       settings.tsx     - User management (admin only)
       devices.tsx      - Network device mapping (admin can add/edit/delete)
       scripts.tsx      - Script library with categories and copy functionality
+      notes.tsx        - Notes for documenting server work
     App.tsx            - Main app with routing
     index.css          - Dark theme CSS variables
 
@@ -57,7 +59,7 @@ server/
   deviceMonitor.ts     - Ping-based online/offline monitoring
 
 shared/
-  schema.ts            - User, Device, and Script schemas with Zod validation
+  schema.ts            - User, Device, Script, and Note schemas with Zod validation
 ```
 
 ## Deployment on Ubuntu Server 24.04
@@ -92,6 +94,11 @@ shared/
 - `POST /api/scripts` - Create new script (admin only)
 - `PATCH /api/scripts/:id` - Update script (admin only)
 - `DELETE /api/scripts/:id` - Delete script (admin only)
+- `GET /api/notes` - List all notes (requires auth)
+- `GET /api/notes/:id` - Get single note (requires auth)
+- `POST /api/notes` - Create new note (admin only)
+- `PATCH /api/notes/:id` - Update note (admin only)
+- `DELETE /api/notes/:id` - Delete note (admin only)
 
 ## Security Notes
 

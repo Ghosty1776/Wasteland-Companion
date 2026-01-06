@@ -18,6 +18,7 @@ import {
   MemoryStick,
   Network,
   FileCode,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -278,6 +279,15 @@ export default function Dashboard() {
               data-testid="button-scripts"
             >
               <FileCode className="w-4 h-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/notes")}
+              data-testid="button-notes"
+            >
+              <StickyNote className="w-4 h-4" />
             </Button>
 
             <Button

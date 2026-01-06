@@ -1,4 +1,4 @@
-import { users, devices, scripts, type User, type InsertUser, type Device, type InsertDevice, type Script, type InsertScript } from "@shared/schema";
+import { users, devices, scripts, notes, type User, type InsertUser, type Device, type InsertDevice, type Script, type InsertScript, type Note, type InsertNote } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -23,6 +23,12 @@ export interface IStorage {
   createScript(script: InsertScript): Promise<Script>;
   updateScript(id: string, script: Partial<InsertScript>): Promise<Script | undefined>;
   deleteScript(id: string): Promise<boolean>;
+
+  getAllNotes(): Promise<Note[]>;
+  getNote(id: string): Promise<Note | undefined>;
+  createNote(note: InsertNote): Promise<Note>;
+  updateNote(id: string, note: Partial<InsertNote>): Promise<Note | undefined>;
+  deleteNote(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -145,6 +151,37 @@ export class DatabaseStorage implements IStorage {
 
   async deleteScript(id: string): Promise<boolean> {
     const result = await db.delete(scripts).where(eq(scripts.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAllNotes(): Promise<Note[]> {
+    return await db.select().from(notes);
+  }
+
+  async getNote(id: string): Promise<Note | undefined> {
+    const [note] = await db.select().from(notes).where(eq(notes.id, id));
+    return note || undefined;
+  }
+
+  async createNote(insertNote: InsertNote): Promise<Note> {
+    const [note] = await db
+      .insert(notes)
+      .values(insertNote)
+      .returning();
+    return note;
+  }
+
+  async updateNote(id: string, updates: Partial<InsertNote>): Promise<Note | undefined> {
+    const [note] = await db
+      .update(notes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(notes.id, id))
+      .returning();
+    return note || undefined;
+  }
+
+  async deleteNote(id: string): Promise<boolean> {
+    const result = await db.delete(notes).where(eq(notes.id, id)).returning();
     return result.length > 0;
   }
 }

@@ -9,6 +9,7 @@ import Dashboard from "@/pages/dashboard";
 import Settings from "@/pages/settings";
 import Devices from "@/pages/devices";
 import Scripts from "@/pages/scripts";
+import Notes from "@/pages/notes";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/devices" component={Devices} />
       <Route path="/scripts" component={Scripts} />
+      <Route path="/notes" component={Notes} />
       <Route component={NotFound} />
     </Switch>
   );
