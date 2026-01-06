@@ -4,9 +4,10 @@ import { storage } from "./storage";
 import session from "express-session";
 import MemoryStore from "memorystore";
 import bcrypt from "bcrypt";
-import { insertUserSchema } from "@shared/schema";
+import { insertUserSchema, insertDeviceSchema } from "@shared/schema";
 import { z } from "zod";
 import { getSystemStatus } from "./systemMetrics";
+import { startDeviceMonitor } from "./deviceMonitor";
 
 const SessionStore = MemoryStore(session);
 const SALT_ROUNDS = 10;
@@ -262,6 +263,106 @@ export async function registerRoutes(
       res.status(500).json({ error: "Internal server error" });
     }
   });
+
+  // ============ DEVICE MANAGEMENT ROUTES ============
+
+  // Get all devices (authenticated users)
+  app.get("/api/devices", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const devices = await storage.getAllDevices();
+      res.json(devices);
+    } catch (error) {
+      console.error("Get devices error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Get single device (authenticated users)
+  app.get("/api/devices/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const device = await storage.getDevice(id);
+      if (!device) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+      res.json(device);
+    } catch (error) {
+      console.error("Get device error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Create device (admin only)
+  app.post("/api/devices", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const parseResult = insertDeviceSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const device = await storage.createDevice(parseResult.data);
+      res.json({ success: true, device });
+    } catch (error) {
+      console.error("Create device error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update device (admin only)
+  app.patch("/api/devices/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      // Allow partial updates
+      const partialSchema = insertDeviceSchema.partial();
+      const parseResult = partialSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const existingDevice = await storage.getDevice(id);
+      if (!existingDevice) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+
+      const device = await storage.updateDevice(id, parseResult.data);
+      res.json({ success: true, device });
+    } catch (error) {
+      console.error("Update device error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Delete device (admin only)
+  app.delete("/api/devices/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const existingDevice = await storage.getDevice(id);
+      if (!existingDevice) {
+        return res.status(404).json({ error: "Device not found" });
+      }
+
+      const deleted = await storage.deleteDevice(id);
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete device" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete device error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Start device monitor
+  startDeviceMonitor();
 
   return httpServer;
 }
