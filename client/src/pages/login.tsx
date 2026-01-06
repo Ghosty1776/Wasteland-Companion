@@ -46,7 +46,7 @@ export default function Login() {
     onSuccess: () => {
       toast({
         title: "Authentication Successful",
-        description: "Welcome to Home Lab Companion",
+        description: "Welcome to Wasteland Companion",
       });
       setLocation("/dashboard");
     },
@@ -97,7 +97,7 @@ export default function Login() {
           {/* Title */}
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold tracking-wider text-foreground mb-2">
-              HOME LAB COMPANION
+              WASTELAND COMPANION
             </h1>
             <p className="text-xs tracking-widest text-muted-foreground uppercase">
               Secure Login // Authorization Required
