@@ -6,9 +6,6 @@ import {
   Server,
   Cpu,
   HardDrive,
-  Activity,
-  Wifi,
-  Power,
   Settings,
   LogOut,
   RefreshCw,
@@ -340,61 +337,6 @@ export default function Dashboard() {
                   percentage={(systemStatus?.temperature || 0) / 100 * 100}
                   status={getTempStatus(systemStatus?.temperature || 0)}
                 />
-              </div>
-            </section>
-
-            {/* Quick Actions */}
-            <section className="mb-8">
-              <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-              <div className="flex flex-wrap gap-3">
-                <Button 
-                  variant="outline" 
-                  className="gap-2" 
-                  data-testid="button-terminal"
-                  onClick={() => toast({
-                    title: "Terminal Access",
-                    description: "SSH into your server using: ssh user@" + (systemStatus?.hostname || "your-server"),
-                  })}
-                >
-                  <Terminal className="w-4 h-4" />
-                  Terminal
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="gap-2" 
-                  data-testid="button-network"
-                  onClick={() => toast({
-                    title: "Network Status",
-                    description: "Network is " + (systemStatus?.networkStatus || "online") + ". All connections nominal.",
-                  })}
-                >
-                  <Wifi className="w-4 h-4" />
-                  Network
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="gap-2" 
-                  data-testid="button-power"
-                  onClick={() => toast({
-                    title: "Power Options",
-                    description: "Use SSH to run: sudo shutdown -h now (halt) or sudo reboot (restart)",
-                  })}
-                >
-                  <Power className="w-4 h-4" />
-                  Power Options
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="gap-2" 
-                  data-testid="button-activity"
-                  onClick={() => toast({
-                    title: "Activity Log",
-                    description: "System uptime: " + (systemStatus?.uptime || "N/A") + ". Check /var/log for detailed logs.",
-                  })}
-                >
-                  <Activity className="w-4 h-4" />
-                  Activity Log
-                </Button>
               </div>
             </section>
 
