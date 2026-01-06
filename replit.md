@@ -18,11 +18,12 @@ The default admin user has the "admin" role, which grants access to user managem
 ## Features
 
 - **Secure Authentication**: Session-based auth with bcrypt password hashing
-- **Role-Based Access**: Admin users can manage other users and devices; regular users can only view
+- **Role-Based Access**: Admin users can manage other users, devices, and scripts; regular users can only view
 - **System Metrics**: CPU, Memory, Disk, and Temperature monitoring (reads from /proc on Linux)
 - **Service Status**: Monitor PostgreSQL, Docker, SSH, and Firewall via systemctl
 - **Network Devices**: Map your home lab devices with IP, MAC, OS, and function descriptions
 - **Online/Offline Monitoring**: Automatic ping monitoring (every 60 seconds) to track device availability
+- **Script Library**: Store and organize bash scripts with categories (security, networking, automation, backup, monitoring, general), search/filter, and copy-to-clipboard
 - **Dark Theme**: Cyberpunk-inspired UI with green accent colors
 - **Responsive Design**: Works on desktop and mobile devices
 
@@ -44,18 +45,19 @@ client/
       dashboard.tsx    - Main dashboard with metrics
       settings.tsx     - User management (admin only)
       devices.tsx      - Network device mapping (admin can add/edit/delete)
+      scripts.tsx      - Script library with categories and copy functionality
     App.tsx            - Main app with routing
     index.css          - Dark theme CSS variables
 
 server/
-  routes.ts            - API endpoints for auth, system status, and devices
+  routes.ts            - API endpoints for auth, system status, devices, and scripts
   storage.ts           - PostgreSQL database storage
   db.ts                - Database connection
   systemMetrics.ts     - Real system metrics collection
   deviceMonitor.ts     - Ping-based online/offline monitoring
 
 shared/
-  schema.ts            - User and Device schemas with Zod validation
+  schema.ts            - User, Device, and Script schemas with Zod validation
 ```
 
 ## Deployment on Ubuntu Server 24.04
@@ -85,6 +87,11 @@ shared/
 - `POST /api/devices` - Create new device (admin only)
 - `PATCH /api/devices/:id` - Update device (admin only)
 - `DELETE /api/devices/:id` - Delete device (admin only)
+- `GET /api/scripts` - List all scripts (requires auth)
+- `GET /api/scripts/:id` - Get single script (requires auth)
+- `POST /api/scripts` - Create new script (admin only)
+- `PATCH /api/scripts/:id` - Update script (admin only)
+- `DELETE /api/scripts/:id` - Delete script (admin only)
 
 ## Security Notes
 
