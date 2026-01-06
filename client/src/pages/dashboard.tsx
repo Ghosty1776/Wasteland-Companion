@@ -238,7 +238,7 @@ export default function Dashboard() {
               <Shield className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-wide">HOME LAB COMPANION</h1>
+              <h1 className="text-lg font-bold tracking-wide">WASTELAND COMPANION</h1>
               <p className="text-xs text-muted-foreground font-mono">
                 {systemStatus?.hostname || "lab-server"}
               </p>
@@ -347,19 +347,51 @@ export default function Dashboard() {
             <section className="mb-8">
               <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" className="gap-2" data-testid="button-terminal">
+                <Button 
+                  variant="outline" 
+                  className="gap-2" 
+                  data-testid="button-terminal"
+                  onClick={() => toast({
+                    title: "Terminal Access",
+                    description: "SSH into your server using: ssh user@" + (systemStatus?.hostname || "your-server"),
+                  })}
+                >
                   <Terminal className="w-4 h-4" />
                   Terminal
                 </Button>
-                <Button variant="outline" className="gap-2" data-testid="button-network">
+                <Button 
+                  variant="outline" 
+                  className="gap-2" 
+                  data-testid="button-network"
+                  onClick={() => toast({
+                    title: "Network Status",
+                    description: "Network is " + (systemStatus?.networkStatus || "online") + ". All connections nominal.",
+                  })}
+                >
                   <Wifi className="w-4 h-4" />
                   Network
                 </Button>
-                <Button variant="outline" className="gap-2" data-testid="button-power">
+                <Button 
+                  variant="outline" 
+                  className="gap-2" 
+                  data-testid="button-power"
+                  onClick={() => toast({
+                    title: "Power Options",
+                    description: "Use SSH to run: sudo shutdown -h now (halt) or sudo reboot (restart)",
+                  })}
+                >
                   <Power className="w-4 h-4" />
                   Power Options
                 </Button>
-                <Button variant="outline" className="gap-2" data-testid="button-activity">
+                <Button 
+                  variant="outline" 
+                  className="gap-2" 
+                  data-testid="button-activity"
+                  onClick={() => toast({
+                    title: "Activity Log",
+                    description: "System uptime: " + (systemStatus?.uptime || "N/A") + ". Check /var/log for detailed logs.",
+                  })}
+                >
                   <Activity className="w-4 h-4" />
                   Activity Log
                 </Button>
