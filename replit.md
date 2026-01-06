@@ -18,9 +18,11 @@ The default admin user has the "admin" role, which grants access to user managem
 ## Features
 
 - **Secure Authentication**: Session-based auth with bcrypt password hashing
-- **Role-Based Access**: Admin users can manage other users; regular users can only view the dashboard
+- **Role-Based Access**: Admin users can manage other users and devices; regular users can only view
 - **System Metrics**: CPU, Memory, Disk, and Temperature monitoring (reads from /proc on Linux)
-- **Service Status**: Monitor Nginx, PostgreSQL, Redis, Docker, SSH, and Firewall via systemctl
+- **Service Status**: Monitor PostgreSQL, Docker, SSH, and Firewall via systemctl
+- **Network Devices**: Map your home lab devices with IP, MAC, OS, and function descriptions
+- **Online/Offline Monitoring**: Automatic ping monitoring (every 60 seconds) to track device availability
 - **Dark Theme**: Cyberpunk-inspired UI with green accent colors
 - **Responsive Design**: Works on desktop and mobile devices
 
@@ -41,17 +43,19 @@ client/
       login.tsx        - Login page with cyberpunk theme
       dashboard.tsx    - Main dashboard with metrics
       settings.tsx     - User management (admin only)
+      devices.tsx      - Network device mapping (admin can add/edit/delete)
     App.tsx            - Main app with routing
     index.css          - Dark theme CSS variables
 
 server/
-  routes.ts            - API endpoints for auth and system status
+  routes.ts            - API endpoints for auth, system status, and devices
   storage.ts           - PostgreSQL database storage
   db.ts                - Database connection
   systemMetrics.ts     - Real system metrics collection
+  deviceMonitor.ts     - Ping-based online/offline monitoring
 
 shared/
-  schema.ts            - User schema with Zod validation
+  schema.ts            - User and Device schemas with Zod validation
 ```
 
 ## Deployment on Ubuntu Server 24.04
@@ -76,12 +80,17 @@ shared/
 - `POST /api/users` - Create new user (admin only)
 - `PATCH /api/users/:id/password` - Change user password (admin only)
 - `DELETE /api/users/:id` - Delete user (admin only)
+- `GET /api/devices` - List all devices (requires auth)
+- `GET /api/devices/:id` - Get single device (requires auth)
+- `POST /api/devices` - Create new device (admin only)
+- `PATCH /api/devices/:id` - Update device (admin only)
+- `DELETE /api/devices/:id` - Delete device (admin only)
 
 ## Security Notes
 
-- Session cookies use `sameSite: strict` for CSRF protection
+- Session cookies use `sameSite: lax` for navigation compatibility
 - Passwords are hashed with bcrypt (10 rounds)
 - Change default admin credentials immediately after deployment
 - Set `SESSION_SECRET` environment variable in production
-- Use HTTPS in production (set via reverse proxy like Nginx)
-- Only admin users can access user management features
+- For HTTPS deployments, set `SECURE_COOKIES=true` environment variable
+- Only admin users can access user management and device management features
