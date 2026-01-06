@@ -413,13 +413,15 @@ function UserRow({ user, currentUserId, onRefresh }: { user: UserData; currentUs
 export default function Settings() {
   const [, setLocation] = useLocation();
 
-  const { data: authStatus, isLoading: authLoading } = useQuery<{ authenticated: boolean; user?: { id: string; username: string } }>({
+  const { data: authStatus, isLoading: authLoading } = useQuery<{ authenticated: boolean; user?: { id: string; username: string; role?: string } }>({
     queryKey: ["/api/auth/status"],
   });
 
+  const isAdmin = authStatus?.user?.role === "admin";
+
   const { data: users, isLoading, error, refetch } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
-    enabled: authStatus?.authenticated === true,
+    enabled: authStatus?.authenticated === true && isAdmin,
     retry: false,
   });
 
@@ -450,6 +452,22 @@ export default function Settings() {
         <div className="text-center">
           <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Verifying access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied for non-admin users
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Lock className="w-12 h-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground mb-6">Only administrators can access user management.</p>
+          <Button onClick={() => setLocation("/dashboard")} data-testid="button-back-to-dashboard">
+            Back to Dashboard
+          </Button>
         </div>
       </div>
     );

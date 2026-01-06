@@ -6,6 +6,7 @@ import MemoryStore from "memorystore";
 import bcrypt from "bcrypt";
 import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
+import { getSystemStatus } from "./systemMetrics";
 
 const SessionStore = MemoryStore(session);
 const SALT_ROUNDS = 10;
@@ -15,34 +16,8 @@ declare module "express-session" {
   interface SessionData {
     userId?: string;
     username?: string;
+    role?: string;
   }
-}
-
-// Simulated system data - in production this would come from actual system APIs
-function getSystemStatus() {
-  const uptimeSecs = Math.floor(process.uptime());
-  const days = Math.floor(uptimeSecs / 86400);
-  const hours = Math.floor((uptimeSecs % 86400) / 3600);
-  const minutes = Math.floor((uptimeSecs % 3600) / 60);
-  
-  return {
-    hostname: "ubuntu-server",
-    uptime: `${days}d ${hours}h ${minutes}m`,
-    cpuUsage: Math.floor(Math.random() * 30 + 15), // 15-45%
-    memoryUsage: Math.floor(Math.random() * 25 + 40), // 40-65%
-    diskUsage: Math.floor(Math.random() * 10 + 55), // 55-65%
-    networkStatus: "online" as const,
-    temperature: Math.floor(Math.random() * 15 + 45), // 45-60°C
-    services: [
-      { name: "Nginx", status: "running" as const, port: 80, uptime: "7d 12h" },
-      { name: "PostgreSQL", status: "running" as const, port: 5432, uptime: "7d 12h" },
-      { name: "Redis", status: "running" as const, port: 6379, uptime: "7d 12h" },
-      { name: "Docker", status: "running" as const, uptime: "7d 12h" },
-      { name: "SSH", status: "running" as const, port: 22, uptime: "7d 12h" },
-      { name: "Firewall", status: "running" as const, uptime: "7d 12h" },
-    ],
-    lastUpdate: new Date().toLocaleTimeString(),
-  };
 }
 
 export async function registerRoutes(
@@ -71,10 +46,10 @@ export async function registerRoutes(
   const existingUsers = await storage.getAllUsers();
   if (existingUsers.length === 0) {
     const hashedPassword = await bcrypt.hash("admin123", SALT_ROUNDS);
-    await storage.createUser({
+    await storage.createUserWithRole({
       username: "admin",
       password: hashedPassword,
-    });
+    }, "admin");
     console.log("Default admin user created. IMPORTANT: Change password in production!");
   }
 
@@ -82,6 +57,17 @@ export async function registerRoutes(
   const requireAuth = (req: Request, res: Response, next: NextFunction) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Authentication required" });
+    }
+    next();
+  };
+
+  // Admin middleware
+  const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (req.session.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
     }
     next();
   };
@@ -111,10 +97,11 @@ export async function registerRoutes(
 
       req.session.userId = user.id;
       req.session.username = user.username;
+      req.session.role = user.role;
 
       res.json({ 
         success: true, 
-        user: { id: user.id, username: user.username } 
+        user: { id: user.id, username: user.username, role: user.role } 
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -139,7 +126,8 @@ export async function registerRoutes(
         authenticated: true, 
         user: { 
           id: req.session.userId, 
-          username: req.session.username 
+          username: req.session.username,
+          role: req.session.role 
         } 
       });
     } else {
@@ -155,12 +143,12 @@ export async function registerRoutes(
 
   // ============ USER MANAGEMENT ROUTES ============
 
-  // Get all users (protected)
-  app.get("/api/users", requireAuth, async (req: Request, res: Response) => {
+  // Get all users (admin only)
+  app.get("/api/users", requireAdmin, async (req: Request, res: Response) => {
     try {
       const users = await storage.getAllUsers();
       // Return users without passwords
-      const safeUsers = users.map(u => ({ id: u.id, username: u.username }));
+      const safeUsers = users.map(u => ({ id: u.id, username: u.username, role: u.role }));
       res.json(safeUsers);
     } catch (error) {
       console.error("Get users error:", error);
@@ -174,7 +162,7 @@ export async function registerRoutes(
     password: z.string().min(6, "Password must be at least 6 characters"),
   });
 
-  app.post("/api/users", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/users", requireAdmin, async (req: Request, res: Response) => {
     try {
       const parseResult = createUserSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -210,7 +198,7 @@ export async function registerRoutes(
     password: z.string().min(6, "Password must be at least 6 characters"),
   });
 
-  app.patch("/api/users/:id/password", requireAuth, async (req: Request, res: Response) => {
+  app.patch("/api/users/:id/password", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 
@@ -244,8 +232,8 @@ export async function registerRoutes(
     }
   });
 
-  // Delete user (protected)
-  app.delete("/api/users/:id", requireAuth, async (req: Request, res: Response) => {
+  // Delete user (admin only)
+  app.delete("/api/users/:id", requireAdmin, async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
 

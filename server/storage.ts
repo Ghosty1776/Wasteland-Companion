@@ -7,6 +7,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  createUserWithRole(user: InsertUser, role: string): Promise<User>;
   updateUserPassword(id: string, hashedPassword: string): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
 }
@@ -30,6 +31,14 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .insert(users)
       .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async createUserWithRole(insertUser: InsertUser, role: string): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({ ...insertUser, role })
       .returning();
     return user;
   }
