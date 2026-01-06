@@ -1,6 +1,9 @@
 import { execSync } from "child_process";
 import * as fs from "fs";
 
+// Store previous CPU reading for differential calculation
+let previousCpuReading: { idle: number; total: number; timestamp: number } | null = null;
+
 interface ServiceStatus {
   name: string;
   status: "running" | "stopped" | "warning";
@@ -54,52 +57,63 @@ function getUptime(): string {
 
 function getCpuUsage(): number {
   try {
-    // Try vmstat first - gives accurate CPU idle percentage
-    const vmstatOutput = safeExec("vmstat 1 2 | tail -1 | awk '{print $15}'");
-    if (vmstatOutput) {
-      const idle = parseInt(vmstatOutput);
-      if (!isNaN(idle) && idle >= 0 && idle <= 100) {
-        return 100 - idle;
+    // Read current /proc/stat and use differential from previous reading
+    const stat = fs.readFileSync("/proc/stat", "utf-8");
+    const cpuLine = stat.split("\n")[0];
+    const values = cpuLine.split(/\s+/).slice(1).map(Number);
+    
+    // idle + iowait
+    const idle = values[3] + values[4];
+    const total = values.reduce((a, b) => a + b, 0);
+    const now = Date.now();
+    
+    if (previousCpuReading && (now - previousCpuReading.timestamp) < 60000) {
+      // Calculate differential from previous reading
+      const idleDelta = idle - previousCpuReading.idle;
+      const totalDelta = total - previousCpuReading.total;
+      
+      // Update stored reading
+      previousCpuReading = { idle, total, timestamp: now };
+      
+      if (totalDelta > 0) {
+        const usage = Math.round(((totalDelta - idleDelta) / totalDelta) * 100);
+        return Math.min(100, Math.max(0, usage));
       }
     }
     
-    // Fallback to top - gets CPU usage from a snapshot
-    const topOutput = safeExec("top -bn1 | grep 'Cpu(s)' | awk '{print $2}'");
+    // Store current reading for next request
+    previousCpuReading = { idle, total, timestamp: now };
+    
+    // First request: try top command for immediate result
+    const topOutput = safeExec("top -bn1 2>/dev/null | head -5 | grep -i cpu");
     if (topOutput) {
-      const usage = parseFloat(topOutput);
-      if (!isNaN(usage) && usage >= 0) {
-        return Math.round(Math.min(100, usage));
+      // Parse "Cpu(s):  4.7 us," or "%Cpu(s):  4.7 us," format
+      const match = topOutput.match(/(\d+\.?\d*)\s*(?:us|%)/);
+      if (match) {
+        const userCpu = parseFloat(match[1]);
+        // Also try to get system CPU
+        const sysMatch = topOutput.match(/(\d+\.?\d*)\s*sy/);
+        const sysCpu = sysMatch ? parseFloat(sysMatch[1]) : 0;
+        const totalUsage = userCpu + sysCpu;
+        if (!isNaN(totalUsage) && totalUsage >= 0) {
+          return Math.round(Math.min(100, totalUsage));
+        }
       }
     }
     
-    // Last resort: read /proc/stat twice with a small delay
-    const stat1 = fs.readFileSync("/proc/stat", "utf-8");
-    const cpuLine1 = stat1.split("\n")[0];
-    const values1 = cpuLine1.split(/\s+/).slice(1).map(Number);
-    
-    // Small synchronous delay using execSync
-    safeExec("sleep 0.1");
-    
-    const stat2 = fs.readFileSync("/proc/stat", "utf-8");
-    const cpuLine2 = stat2.split("\n")[0];
-    const values2 = cpuLine2.split(/\s+/).slice(1).map(Number);
-    
-    const idle1 = values1[3] + values1[4];
-    const idle2 = values2[3] + values2[4];
-    const total1 = values1.reduce((a, b) => a + b, 0);
-    const total2 = values2.reduce((a, b) => a + b, 0);
-    
-    const idleDelta = idle2 - idle1;
-    const totalDelta = total2 - total1;
-    
-    if (totalDelta > 0) {
-      const usage = Math.round(((totalDelta - idleDelta) / totalDelta) * 100);
-      return Math.min(100, Math.max(0, usage));
+    // Try mpstat if available
+    const mpstatOutput = safeExec("mpstat 1 1 2>/dev/null | tail -1 | awk '{print 100 - $NF}'");
+    if (mpstatOutput) {
+      const usage = parseFloat(mpstatOutput);
+      if (!isNaN(usage) && usage >= 0 && usage <= 100) {
+        return Math.round(usage);
+      }
     }
     
-    return 25;
+    // Return reasonable default on first request
+    return 15;
   } catch {
-    return 25;
+    return 15;
   }
 }
 
