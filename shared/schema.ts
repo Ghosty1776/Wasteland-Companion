@@ -43,3 +43,25 @@ export const insertDeviceSchema = createInsertSchema(devices).omit({
 
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
 export type Device = typeof devices.$inferSelect;
+
+export const scripts = pgTable("scripts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull().default("general"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertScriptSchema = createInsertSchema(scripts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1, "Script name is required"),
+  content: z.string().min(1, "Script content is required"),
+});
+
+export type InsertScript = z.infer<typeof insertScriptSchema>;
+export type Script = typeof scripts.$inferSelect;

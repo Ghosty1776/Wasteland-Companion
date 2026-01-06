@@ -1,4 +1,4 @@
-import { users, devices, type User, type InsertUser, type Device, type InsertDevice } from "@shared/schema";
+import { users, devices, scripts, type User, type InsertUser, type Device, type InsertDevice, type Script, type InsertScript } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -17,6 +17,12 @@ export interface IStorage {
   updateDevice(id: string, device: Partial<InsertDevice>): Promise<Device | undefined>;
   updateDeviceStatus(id: string, status: string, lastSeenAt?: Date): Promise<Device | undefined>;
   deleteDevice(id: string): Promise<boolean>;
+
+  getAllScripts(): Promise<Script[]>;
+  getScript(id: string): Promise<Script | undefined>;
+  createScript(script: InsertScript): Promise<Script>;
+  updateScript(id: string, script: Partial<InsertScript>): Promise<Script | undefined>;
+  deleteScript(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -108,6 +114,37 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDevice(id: string): Promise<boolean> {
     const result = await db.delete(devices).where(eq(devices.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getAllScripts(): Promise<Script[]> {
+    return await db.select().from(scripts);
+  }
+
+  async getScript(id: string): Promise<Script | undefined> {
+    const [script] = await db.select().from(scripts).where(eq(scripts.id, id));
+    return script || undefined;
+  }
+
+  async createScript(insertScript: InsertScript): Promise<Script> {
+    const [script] = await db
+      .insert(scripts)
+      .values(insertScript)
+      .returning();
+    return script;
+  }
+
+  async updateScript(id: string, updates: Partial<InsertScript>): Promise<Script | undefined> {
+    const [script] = await db
+      .update(scripts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(scripts.id, id))
+      .returning();
+    return script || undefined;
+  }
+
+  async deleteScript(id: string): Promise<boolean> {
+    const result = await db.delete(scripts).where(eq(scripts.id, id)).returning();
     return result.length > 0;
   }
 }

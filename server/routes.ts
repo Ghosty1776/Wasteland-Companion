@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import session from "express-session";
 import MemoryStore from "memorystore";
 import bcrypt from "bcrypt";
-import { insertUserSchema, insertDeviceSchema } from "@shared/schema";
+import { insertUserSchema, insertDeviceSchema, insertScriptSchema } from "@shared/schema";
 import { z } from "zod";
 import { getSystemStatus } from "./systemMetrics";
 import { startDeviceMonitor } from "./deviceMonitor";
@@ -357,6 +357,102 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       console.error("Delete device error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============ SCRIPT MANAGEMENT ROUTES ============
+
+  // Get all scripts (authenticated users)
+  app.get("/api/scripts", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const scripts = await storage.getAllScripts();
+      res.json(scripts);
+    } catch (error) {
+      console.error("Get scripts error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Get single script (authenticated users)
+  app.get("/api/scripts/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const script = await storage.getScript(id);
+      if (!script) {
+        return res.status(404).json({ error: "Script not found" });
+      }
+      res.json(script);
+    } catch (error) {
+      console.error("Get script error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Create script (admin only)
+  app.post("/api/scripts", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const parseResult = insertScriptSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const script = await storage.createScript(parseResult.data);
+      res.json({ success: true, script });
+    } catch (error) {
+      console.error("Create script error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Update script (admin only)
+  app.patch("/api/scripts/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const partialSchema = insertScriptSchema.partial();
+      const parseResult = partialSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({
+          error: "Invalid input",
+          details: parseResult.error.flatten().fieldErrors,
+        });
+      }
+
+      const existingScript = await storage.getScript(id);
+      if (!existingScript) {
+        return res.status(404).json({ error: "Script not found" });
+      }
+
+      const script = await storage.updateScript(id, parseResult.data);
+      res.json({ success: true, script });
+    } catch (error) {
+      console.error("Update script error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Delete script (admin only)
+  app.delete("/api/scripts/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+
+      const existingScript = await storage.getScript(id);
+      if (!existingScript) {
+        return res.status(404).json({ error: "Script not found" });
+      }
+
+      const deleted = await storage.deleteScript(id);
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete script" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete script error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });

@@ -17,6 +17,7 @@ import {
   Thermometer,
   MemoryStick,
   Network,
+  FileCode,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -268,6 +269,15 @@ export default function Dashboard() {
               data-testid="button-devices"
             >
               <Network className="w-4 h-4" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setLocation("/scripts")}
+              data-testid="button-scripts"
+            >
+              <FileCode className="w-4 h-4" />
             </Button>
 
             <Button
